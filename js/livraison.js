@@ -34,7 +34,7 @@ export function joursDeLivraison(depuis) {
   const jours = [];
   const premier = depuis.getHours() < regles.heureLimite ? 1 : 2;
   for (let ecart = premier; jours.length < 6; ecart++) {
-    const jour = new Date(depuis.getFullYear(), depuis.getMonth(), depuis.getDate() + ecart);
+    const jour = new Date(depuis.getFullYear(), depuis.getMonth(), depuis.getDate() + ecart, 12);
     if (regles.joursFermes.includes(jour.getDay())) continue;
     jours.push(jour.toISOString().slice(0, 10));
   }

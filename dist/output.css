@@ -184,6 +184,9 @@
   .invisible {
     visibility: hidden;
   }
+  .visible {
+    visibility: visible;
+  }
   .mx-auto {
     margin-inline: auto;
   }

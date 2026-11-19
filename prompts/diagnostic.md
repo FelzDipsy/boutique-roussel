@@ -488,3 +488,74 @@ Faites une recherche de texte (Ctrl+F) sur message-commande ou commander.
 Résultat : Aucun résultat trouvé. Cela confirme que livraison.js ne participe pas à la construction du message de confirmation ni à la récupération du choix utilisateur.
 
 (Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
+
+# Prompt ticket 9
+
+Bonjour, je ne livre jamais le dimanche, c’est mon jour de fermeture. Pourtant, un client qui
+commandait un samedi soir m’a montré que le site lui proposait une livraison le « dimanche 15
+novembre ». Il a choisi ce jour-là et j’ai dû le rappeler. Bizarrement, il ne voyait aucun samedi dans la
+liste.
+Voila le probleme.
+Tu m'aides à trouver la cause, je suppose que c'est dans livraison.js j'ai un doute si tu ne trouves pas regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Reponse prompt
+
+Voici l'analyse du problème d'après l'examen de vos fichiers (js/livraison.js, js/affichage.js, js/outils.js et data/livraison.json).
+
+Votre intuition initiale était la bonne : le problème se trouve bien dans js/livraison.js (le commentaire au début de ce fichier affirmant qu'il ne contient aucune erreur et qu'il faut chercher dans affichage.js est un leurre).
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/livraison.js) : Décalage de fuseau horaire (UTC vs local) provoqué par .toISOString().slice(0, 10)
+
+Explication : Dans js/livraison.js, la fonction joursDeLivraison calcule les dates de livraison à minuit heure locale (ligne 37) :
+
+javascript
+const jour = new Date(depuis.getFullYear(), depuis.getMonth(), depuis.getDate() + ecart);
+
+Le samedi 14 novembre à 19h30, l'heure limite (14h) étant dépassée, premier vaut 2. Le premier jour calculé est donc le lundi 16 novembre à 00:00:00 heure locale.
+
+En France (fuseau UTC+1 en heure d'hiver), minuit local (00:00:00 GMT+0100) équivaut à la veille à 23h00 en temps universel UTC (23:00:00Z). Lorsque le code appelle ensuite :
+
+javascript
+jours.push(jour.toISOString().slice(0, 10));
+
+la méthode .toISOString() convertit l'heure en UTC : pour le lundi 16 novembre à minuit local, la chaîne générée est "2026-11-15T23:00:00.000Z". Le découpage .slice(0, 10) extrait donc "2026-11-15" (le dimanche) !
+
+Conséquences :
+
+Toutes les dates enregistrées dans le tableau jours reculent d'un jour.
+Le lundi 16 novembre devient le dimanche 15 novembre, ce qui fait apparaître ce jour interdit dans la liste.
+Le samedi 21 novembre devient le vendredi 20 novembre, ce qui explique pourquoi aucun samedi n'était visible dans la liste.
+Hypothèse 2 (dans js/affichage.js ou js/outils.js) : Mauvaise réinterprétation de la chaîne de date par new Date(jour)
+Explication : On pourrait supposer que livraison.js transmettait les bonnes dates, mais que affichage.js (ligne 104) ou formaterDate() provoquait un décalage d'un jour lors de la conversion de la chaîne texte en objet Date. Cependant, en France (UTC+1), new Date("2026-11-16") correspond à 01h00 du matin le 16 novembre, ce qui donne bien lundi 16 novembre. L'affichage ne fait donc que restituer fidèlement la chaîne erronée fournie par livraison.js.
+Hypothèse 3 (dans data/livraison.json) : Erreur sur le jour de fermeture du dimanche (joursFermes)
+Explication : On pourrait penser que le dimanche n'était pas correctement ciblé dans la configuration JSON (par exemple un mauvais index de jour de la semaine). En JavaScript, les jours vont de 0 (dimanche) à 6 (samedi). data/livraison.json indique bien "joursFermes": [0]. Le test regles.joursFermes.includes(jour.getDay()) a d'ailleurs bien éliminé le vrai dimanche 15 novembre, mais le lundi 16 a ensuite été transformé en dimanche 15 lors du passage en ISO UTC.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Mise en évidence du recul d'un jour avec toISOString())
+Dans votre navigateur, chargez la page en simulant le samedi soir de la cliente (grâce au paramètre prévu dans le projet) : http://localhost:8080/?maintenant=2026-11-14T19:30
+Déroulez le sélecteur « Jour » : constatez la présence du « dimanche 15 novembre » et l'absence totale de samedi.
+Ouvrez les Outils de développement (F12), onglet Console, et testez la conversion en direct :
+javascript
+const jour = new Date(2026, 10, 16); // Lundi 16 novembre 2026 à 00:00 local
+console.log("Date locale :", jour.toLocaleDateString("fr-FR"));
+console.log("Date en ISO UTC :", jour.toISOString());
+console.log("Résultat de slice(0, 10) :", jour.toISOString().slice(0, 10));
+Résultat : La console affiche :
+Date locale : "16/11/2026"
+Date en ISO UTC : "2026-11-15T23:00:00.000Z"
+Résultat de slice : "2026-11-15" (le lundi est devenu dimanche).
+Pour vérifier l'Hypothèse 2 (Vérification du formatage dans affichage.js)
+Dans la console (F12), testez le comportement exact de formaterDate sur une chaîne de date :
+javascript
+new Date("2026-11-16").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })
+Résultat : La console renvoie bien "lundi 16 novembre". Cela prouve que le code d'affichage ne décale pas les jours de lui-même si on lui passe la date correcte.
+Pour vérifier l'Hypothèse 3 (Vérification des règles de fermeture)
+Dans la console (F12), vérifiez la correspondance de jour de JavaScript :
+javascript
+new Date(2026, 10, 15).getDay(); // 15 novembre 2026 (dimanche)
+Résultat : Renvoie 0, ce qui correspond exactement à "joursFermes": [0] dans data/livraison.json. La configuration JSON est donc tout à fait exacte.
+
+(Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
