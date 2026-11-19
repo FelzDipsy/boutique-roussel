@@ -177,3 +177,134 @@ fetch("data/catalogue.json")
 Ce que la console affichera :
 Champêtre : ["plaisir", "merci"] (avec un m minuscule, le filtre fonctionne)
 Le petit mot : ["Merci", "plaisir"] (avec un M majuscule, le filtre échoue)
+
+
+# Prompt 1 Tache 4:
+
+Bonjour, une cliente voulait offrir deux Pivoine poudrée : une petite pour sa sœur et une grande pour
+sa mère. Elle a composé la petite et l’a ajoutée au panier, puis elle a choisi « Grand » et a cliqué à
+nouveau sur « Ajouter au panier ». Dans son panier : deux grandes ! Elle n’a pas compris, et moi non
+plus.
+Voila le probleme.
+Tum'aides à trouver la cause, je suppose que c'est soit dans affichage.js ou panier.js mais je ne suis pas sur si tu trouves rien regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Reponse prompt:
+
+Voici l'analyse détaillée du problème rencontré par la cliente.
+
+Après examen des fichiers du projet, l'origine du problème se situe dans js/composition.js (avec un impact direct sur la logique de js/panier.js).
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/composition.js) : Mutation par référence d'un objet unique options partagé
+Explication : Dans js/composition.js (ligne 7), il n'existe qu'une seule et unique variable globale pour les options :
+javascript
+const options = { taille: "petit", vase: false, carte: false, message: "" };
+Lors du premier ajout (« Petit »), c'est une référence directe vers cet objet options qui est transmise à ajouterAuPanier et stockée dans la première ligne du panier.
+Quand la cliente coche ensuite « Grand », la fonction lireFormulaire() s'exécute et modifie directement l'objet en mémoire : options.taille = "grand". Comme la ligne déjà présente dans le panier pointe vers cet exact même objet, le premier bouquet au panier est immédiatement transformé en « Grand » en mémoire.
+Quand elle clique sur « Ajouter au panier », ajouterAuPanier (js/panier.js) compare les options de la ligne existante avec les nouvelles via memesOptions. Comme les deux pointent vers le même objet (qui vaut désormais « Grand »), la condition est vraie : au lieu de créer une deuxième ligne, le panier incrémente la quantité de la première (quantite += 1). Résultat : une seule ligne de 2 grands bouquets.
+Hypothèse 2 (dans js/panier.js) : Problème de discrimination des lignes dans memesOptions / ajouterAuPanier
+Explication : On pourrait supposer que la logique de regroupement dans panier.js n'est pas capable de différencier deux tailles différentes d'un même bouquet (par exemple si elle ignorait la propriété taille ou ne comparait que l'identifiant bouquetId). Cependant, l'examen de panier.js montre que memesOptions teste explicitement a.taille === b.taille. La comparaison est correcte sur le papier, mais elle est faussée par le fait que a et b désignent la même case mémoire.
+Hypothèse 3 (dans js/affichage.js) : Bogue d'affichage ou fusion visuelle dans afficherPanier
+Explication : On pourrait supposer que le panier contient bien deux lignes distinctes en mémoire (une petite et une grande), mais que la fonction afficherPanier ou decrireOptions afficherait par erreur les caractéristiques du formulaire actuel ou masquerait la première ligne. Néanmoins, le panier affiche le chiffre 2 pour la quantité et un sous-total doublé, ce qui indique que l'anomalie réside bien dans les données du panier et non dans le gabarit d'affichage HTML.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Mise en évidence de la référence partagée)
+Ouvrez le site dans votre navigateur et ouvrez la console des outils de développement (F12).
+Cliquez sur « Composer » sur le bouquet Pivoine poudrée. Laissez la taille sur « Petit » et cliquez sur « Ajouter au panier ».
+Dans le panier, la ligne affiche bien un bouquet avec l'option « Petit ».
+Sans recharger la page, dans le formulaire de composition toujours affiché, cochez simplement « Grand », mais SANS cliquer sur « Ajouter au panier ».
+Ouvrez la console (F12) et collez :
+javascript
+JSON.parse(localStorage.getItem("panier-roussel")).lignes[0].options.taille
+(Ou observez l'affichage après avoir provoqué un rendu, par exemple en saisissant un chiffre dans le code postal).
+Résultat attendu pour valider l'hypothèse : Vous constaterez que l'article déjà présent dans le panier a été altéré et est devenu "grand" avant même d'avoir cliqué sur le bouton d'ajout.
+Pour vérifier l'Hypothèse 2 (Vérification de la fonction de comparaison)
+Ouvrez la console (F12).
+Simulez deux objets distincts pour vérifier si la logique de memesOptions sait différencier deux tailles :
+javascript
+const bouquet1 = { taille: "petit", vase: false, carte: false, message: "" };
+const bouquet2 = { taille: "grand", vase: false, carte: false, message: "" };
+bouquet1.taille === bouquet2.taille;
+Résultat : La console renvoie false. Cela confirme que deux objets indépendants ne seraient pas fusionnés par memesOptions.
+Testez maintenant avec une référence partagée :
+javascript
+const panier = [];
+const options = { taille: "petit" };
+panier.push({ options, quantite: 1 });
+options.taille = "grand"; // l'utilisateur change la taille
+console.log("Taille de l'élément au panier :", panier[0].options.taille);
+Résultat : Affiche "grand". Cela démontre que le problème provient de la référence partagée et non de la fonction de comparaison elle-même.
+Pour vérifier l'Hypothèse 3 (Données réelles vs affichage)
+Reproduisez le parcours de la cliente : composez un premier bouquet « Petit », cliquez sur « Ajouter au panier », cochez « Grand », puis cliquez à nouveau sur « Ajouter au panier ».
+Dans la console (F12), inspectez les données brutes enregistrées :
+javascript
+JSON.parse(localStorage.getItem("panier-roussel")).lignes
+Résultat : La console affiche un tableau ne contenant qu'un seul objet avec quantite: 2 et options: { taille: "grand", ... }. Cela confirme que les données elles-mêmes ont été fusionnées en amont, écartant l'hypothèse d'une simple erreur d'affichage.
+
+(Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
+
+# Prompt 1 ticket 5
+
+Bonjour, une cliente avait mis trois bouquets différents dans son panier. Elle a voulu retirer le premier
+avec le bouton « Supprimer » : les trois ont disparu. Elle a cru à une panne et elle est partie sans
+commander.
+Voila le probleme.
+Tu m'aides à trouver la cause, je suppose que c'est soit dans affichage.js ou panier.js j'ai un doute si tu ne trouves pas regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Reponse prompt
+
+Voici l'analyse du problème d'après l'examen de vos fichiers (js/panier.js, js/affichage.js et js/app.js).
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/panier.js) : Omission du paramètre deleteCount dans lignes.splice(index)
+Explication : À la ligne 42 de js/panier.js, la fonction de suppression est écrite ainsi :
+javascript
+export function supprimerLigne(index) {
+  lignes.splice(index);
+}
+En JavaScript, la méthode Array.prototype.splice(start, deleteCount) prend deux arguments principaux. Si le second argument (deleteCount) est omis, splice supprime tous les éléments à partir de start jusqu'à la fin du tableau. Lorsque la cliente clique sur le bouton « Supprimer » du premier bouquet, index vaut 0. L'appel lignes.splice(0) supprime donc l'élément à l'index 0 ainsi que tous les suivants : l'ensemble des 3 bouquets est immédiatement effacé du panier.
+Hypothèse 2 (dans js/affichage.js / js/app.js) : Transmission d'une action erronée ou appel involontaire à viderPanier
+Explication : On pourrait supposer que le bouton « Supprimer » déclenche par erreur l'action de vidage complet (viderPanier(), normalement réservé à la confirmation de commande dans app.js), ou que l'attribut data-action ou data-index extrait dans affichage.js n'est pas transmis correctement au gestionnaire d'événements.
+Hypothèse 3 (dans js/affichage.js) : Bogue d'affichage masquant visuellement les éléments restants
+Explication : On pourrait envisager que le tableau lignes contienne toujours les deux bouquets restants en mémoire, mais qu'une anomalie dans afficherPanier (par exemple la gestion de l'attribut hidden sur #panier-vide ou une mauvaise réinitialisation du conteneur #panier-liste) donne l'illusion visuelle que tout le panier a disparu.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Comportement de splice et test en conditions réelles)
+Démonstration dans l'interface :
+Ajoutez 3 bouquets différents au panier.
+Au lieu de supprimer le premier, cliquez sur le bouton « Supprimer » du dernier bouquet (le 3ᵉ) : seul celui-ci disparaît (car splice(2) ne supprime qu'à partir de l'index 2, où il n'y a qu'un élément).
+Remettez 3 bouquets, puis cliquez sur « Supprimer » sur le deuxième : le 2ᵉ et le 3ᵉ disparaissent, ne laissant que le premier. Ce comportement prouve que splice(index) supprime tout depuis l'index sélectionné jusqu'au bout.
+Vérification dans la console (F12) :
+Ouvrez la console et testez directement l'instruction :
+javascript
+const panierTest = ["Bouquet 1", "Bouquet 2", "Bouquet 3"];
+panierTest.splice(0);
+console.log(panierTest); // Affiche [] : le panier est entièrement vidé
+Comparez avec un splice(0, 1) :
+javascript
+const panierTest2 = ["Bouquet 1", "Bouquet 2", "Bouquet 3"];
+panierTest2.splice(0, 1);
+console.log(panierTest2); // Affiche ["Bouquet 2", "Bouquet 3"]
+Pour vérifier l'Hypothèse 2 (Vérification des paramètres envoyés par l'événement)
+Ouvrez les Outils de développement (F12), onglet Sources.
+Ouvrez le fichier js/affichage.js et placez un point d'arrêt (breakpoint) sur la ligne 78 :
+javascript
+actionPanierActuelle(cible.dataset.action, Number(cible.dataset.index));
+Cliquez sur « Supprimer » sur le premier bouquet.
+Lors de l'arrêt du script, inspectez les valeurs :
+cible.dataset.action vaut bien "supprimer".
+cible.dataset.index vaut bien "0".
+Cela confirme que l'interface transmet la bonne action et le bon index, et qu'il n'y a pas d'appel parasite à viderPanier.
+Pour vérifier l'Hypothèse 3 (Données en mémoire vs affichage visuel)
+Mettez 3 bouquets dans le panier.
+Cliquez sur « Supprimer » sur le premier bouquet.
+Dans la console (F12), inspectez directement le contenu du stockage local :
+javascript
+JSON.parse(localStorage.getItem("panier-roussel")).lignes
+Résultat : La console renvoie un tableau vide []. Cela prouve que les bouquets ont été supprimés des données elles-mêmes, écartant l'hypothèse d'un simple problème d'affichage HTML.
+
+(Conformément à votre demande, aucun correctif n'a été appliqué à ce stade.)
