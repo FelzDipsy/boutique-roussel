@@ -309,7 +309,7 @@ Résultat : La console renvoie un tableau vide []. Cela prouve que les bouquets 
 
 (Conformément à votre demande, aucun correctif n'a été appliqué à ce stade.)
 
-# Prompt 1 ticket 5
+# Prompt 1 ticket 6
 
 Bonjour, sur le site il est écrit que la livraison est offerte dès 60 € d’achat. Une cliente de Tours a
 commandé un Blanc pur en taille moyenne, avec le vase. Son sous-total affichait bien 60,00 €, mais on
@@ -378,5 +378,61 @@ Dans la console (F12), vérifiez la variable d'état :
 javascript
 JSON.parse(localStorage.getItem("panier-roussel")).codePromo
 Résultat : La valeur est une chaîne vide "", confirmant qu'aucune promotion n'est en cause.
+
+(Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
+
+# Prompt ticket 7
+
+Bonjour, une cliente voulait écrire un long message sur la carte, pour un mariage. Le site l’a bloquée au
+milieu de sa phrase. Pouvez-vous enlever cette limite ? Mes clientes doivent pouvoir écrire ce qu’elles
+veulent.
+Voila le probleme.
+Tu m'aides à trouver la cause, je suppose que c'est dans composition.js j'ai un doute si tu ne trouves pas regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Reponse prompt
+
+Voici l'analyse du problème d'après l'examen de vos fichiers (js/composition.js, data/catalogue.json et index.html).
+
+Votre intuition était la bonne : le comportement provient bien de js/composition.js, configuré à partir des données de data/catalogue.json.
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans data/catalogue.json et js/composition.js) : Restriction native par la propriété maxLength et découpage slice
+Explication :
+Dans data/catalogue.json (ligne 60), l'option carte comporte un paramètre de limitation :
+json
+"carte": { "libelle": "Carte avec votre message", "prix": 2.5, "longueurMax": 150 }
+Dans js/composition.js, cette limite est appliquée au champ de texte à deux niveaux :
+À la ligne 36 : document.querySelector("#message-carte").maxLength = reglesOptions.carte.longueurMax; En HTML, lorsqu'un élément <textarea> reçoit la propriété maxLength = 150, le navigateur bloque physiquement la saisie au clavier dès que le 150ᵉ caractère est atteint. La cliente a donc été bloquée net en pleine rédaction.
+À la ligne 75 : options.message = options.carte ? message.slice(0, reglesOptions.carte.longueurMax) : ""; Le script tronque également tout message qui dépasserait cette longueur.
+Hypothèse 2 (dans index.html) : Attribut maxlength codé en dur dans le balisage HTML d'origine
+Explication : On pourrait penser que le fichier index.html définissait déjà un attribut maxlength="150" en dur sur la balise <textarea id="message-carte">. L'examen de index.html montre que la balise est neutre (<textarea id="message-carte" rows="3" ...></textarea>). La limitation ne vient donc pas du HTML statique, mais bien de son injection par le script JavaScript au chargement.
+Hypothèse 3 (dans js/composition.js) : Interception de la saisie clavier par un écouteur d'événement (keydown / keypress)
+Explication : On pourrait imaginer qu'un script surveillait chaque touche tapée et bloquait l'événement via un evenement.preventDefault() dès le dépassement d'une certaine longueur. L'examen de composition.js montre qu'aucun événement clavier bloquant n'est utilisé ; c'est le comportement par défaut imposé par le navigateur via l'attribut maxLength.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Vérification de maxLength dans la console et test de frappe)
+Ouvrez le site dans le navigateur, cliquez sur « Composer » pour n'importe quel bouquet et cochez « Carte avec votre message ».
+Ouvrez les Outils de développement (F12), onglet Console.
+Inspectez la valeur de la propriété appliquée au champ :
+javascript
+document.querySelector("#message-carte").maxLength
+Résultat : La console renvoie 150.
+Essayez de taper ou de coller un long texte dans le champ : la saisie s'arrête exactement au 150ᵉ caractère.
+Toujours dans la console, retirez temporairement cette limite pour constater la différence :
+javascript
+document.querySelector("#message-carte").removeAttribute("maxlength");
+Tapez à nouveau : le blocage de saisie disparait immédiatement dans le champ.
+Pour vérifier l'Hypothèse 2 (Vérification du code source HTML initial)
+Sur la page, faites un clic droit puis « Afficher le code source de la page » (ou Ctrl+U).
+Recherchez <textarea id="message-carte"> :
+html
+<textarea id="message-carte" rows="3" class="mt-1 w-full rounded border border-roussel-gris bg-white p-2"></textarea>
+Résultat : Il n'y a aucun attribut maxlength dans le code source original, confirmant qu'il est injecté dynamiquement par JavaScript.
+Pour vérifier l'Hypothèse 3 (Vérification des écouteurs d'événements)
+Dans les DevTools (F12), onglet Éléments (Elements), sélectionnez le <textarea id="message-carte">.
+Dans le panneau de droite, cliquez sur l'onglet Écouteurs d'événements (Event Listeners).
+Déroulez la liste : vous constaterez qu'il n'y a aucun écouteur keydown, keyup ou keypress, écartant l'hypothèse d'un script d'interception du clavier.
 
 (Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
