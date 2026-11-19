@@ -4,7 +4,7 @@ Il y a bien un problème, aucun samedi n'est affiché par contre le dimanche est
 # 1eme Prompt:
 En effet l'hyphothèse 1 ne marche pas peut tu me donner un correctif pour celle ci sans l'appliquer demande moi dabord si je l'accepte ou non
 
-# Correction hypothèse 1 ticket 8
+# Correction hypothèse 1 ticket 9
 
 Voici le correctif proposé pour résoudre le problème directement dans js/livraison.js (Hypothèse 1).
 

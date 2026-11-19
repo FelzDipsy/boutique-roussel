@@ -559,3 +559,84 @@ new Date(2026, 10, 15).getDay(); // 15 novembre 2026 (dimanche)
 Résultat : Renvoie 0, ce qui correspond exactement à "joursFermes": [0] dans data/livraison.json. La configuration JSON est donc tout à fait exacte.
 
 (Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
+
+# Prompt ticket 9
+
+Bonjour, une cliente fidèle, qui commandait déjà sur le site l’an dernier, avant la nouvelle version, m’a
+envoyé une capture d’écran : son panier affiche « NaN € » à la place des prix, et elle ne peut plus
+commander. Chez moi et chez mes autres clientes, tout fonctionne. Que se passe-t-il ?
+Voila le probleme.
+Tu m'aides à trouver la cause, je n'ai aucune idée dans quel .js le problème a lieu.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+
+# Reponse prompt
+
+Voici l'analyse du problème d'après l'examen de vos fichiers (js/stockage.js, js/prix.js et js/app.js).
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/stockage.js) : Absence de contrôle du numéro de version (donnees.version) dans le stockage local
+
+Explication : Dans js/stockage.js, une constante VERSION = 2 est définie (ligne 4) et enregistrée dans le navigateur lors de la sauvegarde (sauverPanier) :
+
+javascript
+const donnees = { version: VERSION, lignes, codePromo };
+
+Cependant, dans la fonction chargerPanier() (lignes 13-20), le code ne vérifie jamais si les données présentes dans le localStorage correspondent bien à la version 2 :
+
+javascript
+export function chargerPanier() {
+  const brut = localStorage.getItem(CLE);
+  if (!brut) return { lignes: [], codePromo: "" };
+  const donnees = JSON.parse(brut);
+  return { lignes: donnees.lignes || donnees, codePromo: donnees.codePromo || "" };
+}
+
+La cliente fidèle possède dans son navigateur un panier enregistré l'an dernier sous l'ancienne Version 1 (avant la refonte de septembre 2026). Dans cette version 1, les lignes du panier ne possédaient pas la même structure que la version 2 (par exemple, la propriété quantite ou options n'existait pas sous cette forme).
+
+Lors du chargement, stockage.js charge ces anciennes lignes incompatibles. Dans js/prix.js, la fonction prixLigne exécute :
+
+javascript
+prixUnitaire(ligne) * ligne.quantite
+
+Multiplier un prix par undefined (propriété quantite absente de l'ancien format) produit NaN (Not-a-Number). La fonction formaterPrix(NaN) affiche alors fidèlement « NaN € » à l'écran, ce qui corrompt tout le récapitulatif et bloque la commande.
+
+Pourquoi cela ne touche-t-il pas les autres clientes ni votre ordinateur ? Parce que vous et vos autres clientes avez commencé avec un panier neuf créé directement en Version 2.
+
+Hypothèse 2 (dans js/prix.js) : Absence de valeurs de repli (fallback défensif) sur les propriétés de ligne
+Explication : On pourrait supposer que prix.js manque de robustesse en ne sécurisant pas les calculs avec des valeurs par défaut (par exemple ligne.quantite || 1 ou en vérifiant que ligne est un objet valide). Dès qu'une propriété attendue manque dans les données, l'opération arithmétique * produit NaN et contamine l'ensemble de la chaîne de calculs.
+Hypothèse 3 (dans js/promo.js ou js/app.js) : Interférence d'un ancien code promo obsolète stocké en mémoire
+Explication : On pourrait penser qu'un ancien code promotionnel stocké dans les données de la cliente l'an dernier fausse le calcul du total en renvoyant une remise indéterminée. Cependant, dans promo.js, un code inconnu ou expiré renvoie une remise numérique de 0. De plus, « NaN € » apparaît dès les lignes individuelles du panier et sur le sous-total, avant même le calcul de la remise, ce qui confirme que la cause vient bien de la structure des lignes d'articles.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Reproduire le panier V1 de la cliente dans la console)
+Ouvrez votre boutique dans le navigateur et ouvrez la console (F12).
+Simulez le panier obsolète de la cliente (une ligne sans la propriété quantite ni version) en collant cette commande :
+javascript
+localStorage.setItem("panier-roussel", JSON.stringify([{ bouquetId: "blanc-pur" }]));
+Rechargez la page (F5).
+Résultat : Vous obtenez exactement la même capture d'écran que votre cliente :
+Le panier affiche « Blanc pur »,
+Le prix de la ligne affiche « NaN € »,
+Le sous-total et le total affichent également « NaN € ».
+Pour réinitialiser votre navigateur après le test, tapez :
+javascript
+localStorage.removeItem("panier-roussel");
+puis rechargez la page (le panier redevient vide et sain).
+Pour vérifier l'Hypothèse 2 (Vérification de l'opération arithmétique dans la console)
+Dans la console (F12), testez l'effet d'une quantité indéfinie sur le calcul du prix :
+javascript
+const ligneV1 = { bouquetId: "blanc-pur" };
+console.log("Multiplication :", 38.9 * ligneV1.quantite);
+Résultat : La console affiche Multiplication : NaN.
+Testez avec une valeur de repli :
+javascript
+console.log("Avec repli :", 38.9 * (ligneV1.quantite || 1));
+Résultat : La console renvoie 38.9. Cela prouve que c'est bien l'absence de quantite qui provoque l'apparition de NaN.
+Pour vérifier l'Hypothèse 3 (Vérification de l'absence d'impact du code promo)
+Avec le panier simulé affichant « NaN € », inspectez la ligne de remise dans le récapitulatif à l'écran.
+Constatez que la remise affiche 0,00 € (et non NaN €).
+Constatez que le sous-total au-dessus affiche déjà NaN € : l'erreur est donc apparue bien avant l'intervention de promo.js.
+
+(Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
