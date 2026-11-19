@@ -436,3 +436,55 @@ Dans le panneau de droite, cliquez sur l'onglet Écouteurs d'événements (Event
 Déroulez la liste : vous constaterez qu'il n'y a aucun écouteur keydown, keyup ou keypress, écartant l'hypothèse d'un script d'interception du clavier.
 
 (Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
+
+# Prompt ticket 8
+
+Bonjour, une cliente avait choisi une livraison l’après-midi, parce qu’elle travaille le matin. Le message
+de confirmation disait « matin », et c’est aussi ce qui était écrit dans la commande que j’ai reçue. Mon
+livreur est passé le matin : personne. Elle a dû venir chercher son bouquet à la boutique.
+Voila le probleme.
+Tu m'aides à trouver la cause, je suppose que c'est dans livraison.js j'ai un doute si tu ne trouves pas regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Reponse prompt
+
+Voici l'analyse du problème d'après l'examen de vos fichiers (js/livraison.js, js/app.js et js/affichage.js).
+
+L'origine du problème ne se situe pas dans livraison.js, mais dans js/app.js.
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/app.js) : Sélecteur CSS incomplet pour le bouton radio (querySelector sans :checked)
+Explication : À la ligne 116 de js/app.js, la fonction commander() récupère le moment choisi par la cliente avec l'instruction suivante :
+javascript
+const moment = document.querySelector("input[name=moment]");
+En JavaScript, document.querySelector() renvoie systématiquement le tout premier élément correspondant trouvé dans le DOM. Or, le premier bouton radio créé dans la page est toujours « Matin ». Faute d'avoir précisé la pseudo-classe :checked (input[name=moment]:checked), la variable moment pointe toujours vers le bouton « Matin », quel que soit le bouton radio coché par la cliente. À la ligne 131, le libellé extrait (moment.nextSibling.textContent) vaut donc invariablement "matin".
+Hypothèse 2 (dans js/affichage.js) : Mauvais groupement des boutons radio ou réinitialisation intempestive
+Explication : On pourrait supposer que la fonction afficherMoments() dans affichage.js n'attribuait pas le même nom de groupe (name="moment") aux boutons radio, ou qu'un réaffichage (rafraîchissement) écrasait le choix de la cliente en recochant le premier par défaut. L'examen de affichage.js montre que les boutons sont bien groupés sous name="moment" et qu'ils ne sont générés qu'une seule fois au chargement.
+Hypothèse 3 (dans js/livraison.js) : Fausse piste — livraison.js n'intervient pas dans la validation de commande
+Explication : On pourrait penser que livraison.js impose ou filtre le moment de livraison. En réalité, livraison.js se contente de renvoyer la liste des moments possibles (matin, apres-midi) définis dans data/livraison.json ; il n'intervient à aucun moment dans la lecture du formulaire ni lors du clic sur le bouton « Commander ».
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Démonstration du sélecteur dans la console)
+Ouvrez le site dans le navigateur.
+Ajoutez un bouquet au panier, renseignez un code postal valide (ex. 37000), choisissez un jour, puis cochez le bouton radio « Après-midi ».
+Ouvrez les Outils de développement (F12), onglet Console.
+Testez le sélecteur actuellement utilisé dans app.js :
+javascript
+document.querySelector("input[name=moment]").nextSibling.textContent.trim()
+Résultat : La console renvoie "Matin" (alors que vous avez sélectionné Après-midi).
+Testez maintenant avec le sélecteur ciblant le bouton coché :
+javascript
+document.querySelector("input[name=moment]:checked").nextSibling.textContent.trim()
+Résultat : La console renvoie bien "Après-midi".
+Si vous cliquez sur le bouton « Commander » sur la page, vous constaterez que le message de confirmation affiche : "... (matin).".
+Pour vérifier l'Hypothèse 2 (Vérification du groupe radio dans le DOM)
+Dans les DevTools (F12), onglet Éléments (Elements), inspectez les deux boutons radio sous la section Livraison.
+Constatez qu'ils possèdent tous les deux l'attribut name="moment".
+Cliquez alternativement sur « Matin » puis « Après-midi » dans l'interface : l'un se décoche lorsque l'autre est coché, confirmant que le composant de formulaire HTML fonctionne parfaitement.
+Pour vérifier l'Hypothèse 3 (Vérification du rôle de livraison.js)
+Dans l'onglet Sources des DevTools (F12), ouvrez le fichier js/livraison.js.
+Faites une recherche de texte (Ctrl+F) sur message-commande ou commander.
+Résultat : Aucun résultat trouvé. Cela confirme que livraison.js ne participe pas à la construction du message de confirmation ni à la récupération du choix utilisateur.
+
+(Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
