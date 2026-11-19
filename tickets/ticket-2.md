@@ -1,7 +1,7 @@
 # Test hypothèse 1 tache 2
 En effet le nombre de fonctions attachées à l'événement click se multiplie bien, le problème vient de ça
 
-# 2eme Prompt:
+# 1 Prompt:
 En effet l'hyphothèse 1 ne marche pas peut tu me donner un correctif pour celle ci sans l'appliquer demande moi dabord si je l'accepte ou non
 
 # Correction hypothèse 1 tache 1
@@ -45,9 +45,9 @@ export function afficherPanier(lignes, surAction) {
 
 Acceptez-vous que j'applique ce correctif dans affichage.js ?
 
-# Test correction Tache 1 Prompt 2
+# Test correction Tache 2 Prompt 1
 Résultat ok nous pouvons donc ajouter 1 par 1 le même bouquet.
-J'ai vérifié le prompt 1 aucun soucis rencontré.
+J'ai vérifié la tache 1 aucun soucis rencontré.
 
 
 # Rédaction cliente

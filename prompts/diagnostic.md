@@ -51,7 +51,7 @@ const regle = promos.find((promo) => promo.code === saisie);
 Reproduisez la saisie depuis un mobile (ou en mode émulation mobile du navigateur avec Ctrl+Maj+M) en copiant-collant le code.
 Dans le panneau des variables lors de l'arrêt, observez la valeur exacte de la variable saisie (vous pourrez visualiser la présence d'espaces, de minuscules ou de caractères d'échappement invisibles).
 
-# Prompt 2
+# Prompt 1 Tache 2
 
 Bonjour, quand une cliente veut plusieurs bouquets identiques et clique sur le +, le panier en ajoute
 plusieurs d’un coup, et c’est de pire en pire à chaque clic. Une cliente s’est retrouvée avec une quinzaine
@@ -95,3 +95,85 @@ Observez directement le texte affiché entre le bouton − et le bouton + dans l
 En cliquant sur +, le chiffre affiché passe réellement de 1 à 3, puis 7, etc. Le problème affecte donc bien la variable quantite elle-même et non une anomalie de calcul mathématique dans prix.js.
 
 (Aucun correctif n'a été appliqué conformément à votre demande).
+
+# Prompt 1 Tache 3:
+Bonjour, quand on choisit l’occasion « Merci », le bouquet « Le petit mot » n’apparaît pas. C’est pourtant
+celui que je vends le plus pour dire merci ! Il est bien là quand on affiche tous les bouquets.
+Voila le probleme.
+Tum'aides à trouver la cause, je suppose que c'est soit dans composition.js ou dans affichage.js, je ne suis pas sur si tu trouves pas dans ces 2 la cherche dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Premiere réponse Prompt 1:
+
+Voici l'analyse du problème pour ce ticket, en tenant compte de votre piste sur composition.js et affichage.js.
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans data/catalogue.json) : Erreur de casse (majuscule) sur l'occasion du bouquet « Le petit mot »
+Explication : Dans data/catalogue.json, le bouquet « Le petit mot » possède la configuration suivante :
+json
+"occasions": ["Merci", "plaisir"]
+L'occasion y est inscrite avec un M majuscule ("Merci"), alors que le filtre transmet l'identifiant technique en minuscules ("merci"). Comme la méthode .includes() est sensible à la casse, "Merci" n'est pas reconnu comme "merci".
+En revanche, lorsque le filtre est sur « Toutes », la condition occasion === "toutes" est vraie pour tous les bouquets sans tester le tableau occasions, ce qui explique pourquoi le bouquet est bien présent dans la liste globale.
+Hypothèse 2 (dans js/affichage.js) : Filtrage strict sans tolérance à la casse
+Explication : À la ligne 11 de js/affichage.js, la fonction afficherCatalogue filtre avec :
+javascript
+bouquet.occasions.includes(occasion)
+Le filtre ne normalise pas les chaînes (par exemple via .toLowerCase()) avant comparaison. Il dépend donc à 100 % d'une correspondance exacte de casse entre les identifiants de filtres et les données JSON.
+Hypothèse 3 (dans js/composition.js) : Fausse piste — composition.js n'intervient pas dans le filtrage
+Explication : On pourrait penser que composition.js filtre ou masque des bouquets. En réalité, ce fichier ne s'occupe que du panneau d'options d'un bouquet déjà sélectionné (choix de la taille, ajout du vase/carte et ajout au panier) ; il ne participe ni à l'affichage ni au filtrage de la liste des bouquets.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Inspection des données JSON)
+Ouvrez le site dans le navigateur et ouvrez la console des outils de développement (F12).
+Collez la commande suivante dans la console :
+javascript
+fetch("data/catalogue.json")
+  .then(res => res.json())
+  .then(data => {
+    const bouquet = data.bouquets.find(b => b.id === "petit-mot");
+    console.log("Occasions de 'Le petit mot' :", bouquet.occasions);
+  });
+Résultat : La console affiche ["Merci", "plaisir"]. On constate directement la majuscule sur "Merci", contrairement aux autres bouquets qui ont "merci".
+Pour vérifier l'Hypothèse 2 (Comportement du filtre dans la console)
+Dans la console (F12), reproduisez l'instruction exacte exécutée par affichage.js :
+javascript
+["Merci", "plaisir"].includes("merci")
+Résultat : La console renvoie false.
+Testez ensuite avec une conversion en minuscules :
+javascript
+["Merci", "plaisir"].some(occ => occ.toLowerCase() === "merci")
+Résultat : La console renvoie true.
+Pour vérifier l'Hypothèse 3 (Rôle de composition.js)
+Dans l'onglet Sources des DevTools (F12), ouvrez le fichier js/composition.js.
+Faites une recherche de texte (Ctrl+F) sur le mot occasion ou filter.
+Résultat : Aucun résultat trouvé. Cela confirme que ce fichier ne gère aucun filtrage de la liste du catalogue.
+
+(Aucun correctif n'a été appliqué à ce stade).
+
+# Deuxieme prompt Tache 3
+
+fetch("data/catalogue.json")
+  .then(res => res.json())
+  .then(data => {
+    const bouquet = data.bouquets.find(b => b.id === "petit-mot");
+    console.log("Occasions de 'Le petit mot' :", bouquet.occasions);
+  });
+donne en moi un autre qui apparait dans merci pour voir la différence
+
+# Deuxieme réponse 
+
+Voici le code à coller dans la console pour comparer directement « Le petit mot » avec le bouquet « Champêtre » (qui, lui, s'affiche correctement quand on sélectionne « Merci ») :
+
+javascript
+fetch("data/catalogue.json")
+  .then(res => res.json())
+  .then(data => {
+    const champetre = data.bouquets.find(b => b.id === "champetre");
+    const petitMot = data.bouquets.find(b => b.id === "petit-mot");
+    console.log("Champêtre :", champetre.occasions);
+    console.log("Le petit mot :", petitMot.occasions);
+  });
+Ce que la console affichera :
+Champêtre : ["plaisir", "merci"] (avec un m minuscule, le filtre fonctionne)
+Le petit mot : ["Merci", "plaisir"] (avec un M majuscule, le filtre échoue)
