@@ -51,3 +51,47 @@ const regle = promos.find((promo) => promo.code === saisie);
 Reproduisez la saisie depuis un mobile (ou en mode émulation mobile du navigateur avec Ctrl+Maj+M) en copiant-collant le code.
 Dans le panneau des variables lors de l'arrêt, observez la valeur exacte de la variable saisie (vous pourrez visualiser la présence d'espaces, de minuscules ou de caractères d'échappement invisibles).
 
+# Prompt 2
+
+Bonjour, quand une cliente veut plusieurs bouquets identiques et clique sur le +, le panier en ajoute
+plusieurs d’un coup, et c’est de pire en pire à chaque clic. Une cliente s’est retrouvée avec une quinzaine
+de bouquets. Heureusement qu’elle a vu le total avant de commander !
+Voila le probleme.
+Tum'aides à trouver la cause, je suppose que c'est soit dans prix.js ou panier.js mais je suis pas totalement sur si tu trouves pas dans ces 2 la regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Premmiere réponse
+
+Voici l'analyse du problème pour ce ticket.
+
+Après vérification du code, l'origine du comportement ne se trouve pas dans prix.js ni panier.js, mais dans affichage.js.
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/affichage.js) : Empilement exponentiel des écouteurs d'événements click (addEventListener)
+Explication : Dans affichage.js, à la fin de la fonction afficherPanier (ligne 69), un écouteur liste.addEventListener("click", ...) est attaché à l'élément #panier-liste.
+Or, #panier-liste est un conteneur statique de la page qui n'est jamais détruit (seuls ses enfants sont vidés). À chaque appel de rafraichir(), afficherPanier() attache un nouvel écouteur sans enlever le précédent.
+Dès qu'on clique sur +, tous les écouteurs enregistrés se déclenchent les uns après les autres. Chacun incrémente la quantité et appelle rafraichir(), ce qui ajoute encore de nouveaux écouteurs en pleine réaction en chaîne. L'incrémentation s'emballe de façon exponentielle (1, 3, 7, 15 bouquets…), ce qui correspond exactement au symptôme « de pire en pire à chaque clic ».
+Hypothèse 2 (dans js/panier.js) : Dysfonctionnement dans la logique de modification de quantité (changerQuantite)
+Explication : On pourrait supposer que la fonction changerQuantite applique un facteur multiplicatif, possède un effet de bord ou modifie plusieurs fois la même ligne (par exemple une référence partagée ou un problème de boucle). En examinant panier.js, la ligne ligne.quantite += ecart; est pourtant saine (elle ajoute bien +1 par exécution).
+Hypothèse 3 (dans js/prix.js) : Dérive cumulative des calculs de prix / sous-total
+Explication : On pourrait supposer que le calcul du prix dans prixLigne ou sousTotal multiplie le montant ou réinjecte une valeur erronée dans l'affichage, donnant l'illusion d'une quantité qui explose.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Écouteurs multiples dans le navigateur)
+Ouvrez le site dans Chrome, Edge ou Firefox et ouvrez les outils de développement (F12).
+Ajoutez un bouquet au panier.
+Allez dans l'onglet Éléments (Elements) et sélectionnez la balise <ul id="panier-liste">.
+Dans le volet latéral droit, cliquez sur l'onglet Écouteurs d'événements (Event Listeners), puis dépliez l'événement click.
+Cliquez une première fois sur le bouton + dans la boutique, puis réexaminez ce volet : vous verrez le nombre de fonctions attachées à l'événement click se multiplier (2, puis 4, puis 8, etc.).
+Alternative via l'onglet Console : posez un point d'arrêt (breakpoint) dans l'onglet Sources sur la ligne 72 de js/affichage.js (surAction(...)). Vous constaterez qu'un seul clic physique sur le bouton + s'arrête de nombreuses fois d'affilée sur ce point d'arrêt.
+Pour vérifier l'Hypothèse 2 (Vérification de panier.js)
+Dans l'onglet Sources (F12), ouvrez js/panier.js et placez un point d'arrêt sur la ligne 34 : ligne.quantite += ecart;.
+Cliquez une fois sur +.
+Observez la valeur de ecart dans la pile des variables : elle vaut bien 1.
+En cliquant sur Reprendre (F8 / Play), constatez que le code repasse immédiatement dans cette fonction sans que vous n'ayez recliqué, prouvant que panier.js n'est pas le responsable de l'appel multiple, mais seulement la victime des événements en chaîne.
+Pour vérifier l'Hypothèse 3 (Vérification de prix.js vs Quantité réelle)
+Observez directement le texte affiché entre le bouton − et le bouton + dans le panier (le <span> de la quantité).
+En cliquant sur +, le chiffre affiché passe réellement de 1 à 3, puis 7, etc. Le problème affecte donc bien la variable quantite elle-même et non une anomalie de calcul mathématique dans prix.js.
+
+(Aucun correctif n'a été appliqué conformément à votre demande).

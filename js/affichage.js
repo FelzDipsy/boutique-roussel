@@ -38,8 +38,13 @@ function decrireOptions(options) {
   return morceaux.filter(Boolean).join(", ");
 }
 
+// Variables pour n'installer l'écouteur du panier qu'une seule fois.
+let actionPanierActuelle = null;
+let ecouteurPanierInstalle = false;
+
 // Affiche les lignes du panier avec leurs boutons.
 export function afficherPanier(lignes, surAction) {
+  actionPanierActuelle = surAction;
   const liste = document.querySelector("#panier-liste");
   liste.replaceChildren();
   document.querySelector("#panier-vide").hidden = lignes.length > 0;
@@ -65,12 +70,15 @@ export function afficherPanier(lignes, surAction) {
     liste.append(element);
   });
 
-  // Les boutons + , − et Supprimer de toutes les lignes.
-  liste.addEventListener("click", (evenement) => {
-    const cible = evenement.target.closest("button[data-action]");
-    if (!cible) return;
-    surAction(cible.dataset.action, Number(cible.dataset.index));
-  });
+  // Les boutons + , − et Supprimer de toutes les lignes (attaché une seule fois).
+  if (!ecouteurPanierInstalle) {
+    liste.addEventListener("click", (evenement) => {
+      const cible = evenement.target.closest("button[data-action]");
+      if (!cible || !actionPanierActuelle) return;
+      actionPanierActuelle(cible.dataset.action, Number(cible.dataset.index));
+    });
+    ecouteurPanierInstalle = true;
+  }
 }
 
 // Crée un bouton d'action pour une ligne du panier.
