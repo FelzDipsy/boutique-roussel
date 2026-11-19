@@ -308,3 +308,75 @@ JSON.parse(localStorage.getItem("panier-roussel")).lignes
 Résultat : La console renvoie un tableau vide []. Cela prouve que les bouquets ont été supprimés des données elles-mêmes, écartant l'hypothèse d'un simple problème d'affichage HTML.
 
 (Conformément à votre demande, aucun correctif n'a été appliqué à ce stade.)
+
+# Prompt 1 ticket 5
+
+Bonjour, sur le site il est écrit que la livraison est offerte dès 60 € d’achat. Une cliente de Tours a
+commandé un Blanc pur en taille moyenne, avec le vase. Son sous-total affichait bien 60,00 €, mais on
+lui a compté 5,90 € de livraison. Je l’ai remboursée, mais cela ne doit pas se reproduire.
+Voila le probleme.
+Tu m'aides à trouver la cause, je suppose que c'est soit dans prix.js, promo.js ou promotions.js j'ai un doute si tu ne trouves pas regarde dans les autres.
+1.Propose trois hypothèses au plus, classées.
+2.Pour chacune : comment la vérifier dans le navigateur.
+3.Aucun correctif à ce stade.
+
+# Reponse prompt
+
+Voici l'analyse du problème d'après l'examen de vos fichiers (js/prix.js, js/livraison.js, data/catalogue.json et data/livraison.json).
+
+L'origine du problème se situe bien dans js/prix.js.
+
+1. Trois hypothèses classées
+Hypothèse 1 (La véritable cause — dans js/prix.js) : Imprécision de calcul en virgule flottante (IEEE 754) non arrondie
+
+Explication : D'après data/catalogue.json, le détail du prix pour cette commande est :
+
+Bouquet « Blanc pur » : 38.9 €
+Supplément taille « Moyen » : 8.2 €
+Option « Vase en verre » : 12.9 €
+
+En JavaScript (comme dans la plupart des langages suivant la norme IEEE 754), les additions de nombres décimaux à virgule flottante ne sont pas exactes : 38.9 + 8.2 + 12.9 donne 59.99999999999999 et non 60.0.
+
+Dans js/prix.js, les fonctions prixUnitaire et sousTotal calculent les sommes brutes sans utiliser la fonction d'arrondi au centime arrondir() (pourtant disponible dans js/outils.js).
+
+À l'affichage : la fonction formaterPrix() utilise toLocaleString(), qui arrondit automatiquement à deux décimales, affichant ainsi innocemment 60,00 €.
+Pour la livraison : dans js/livraison.js, le test vérifie si montant >= regles.seuilGratuite (60). Or, 59.99999999999999 >= 60 est faux (false). Le site considère donc que le seuil de 60 € n'est pas atteint et facture les frais de livraison de 5,90 €.
+Hypothèse 2 (dans data/livraison.json ou js/livraison.js) : Erreur sur la valeur du seuil ou opérateur d'inégalité strict (>)
+Explication : On pourrait penser que le seuil de gratuité dans data/livraison.json a été fixé au-delà de 60 € (par exemple 60.01 ou 65), ou que livraison.js utilisait une inégalité stricte (montant > seuilGratuite au lieu de >=). Cependant, data/livraison.json indique bien "seuilGratuite": 60 et livraison.js utilise bien >=.
+Hypothèse 3 (dans js/promo.js ou js/promotions.js) : Déduction cachée ou interférence d'une réduction fantôme
+Explication : On pourrait envisager qu'une règle de code promotionnel réduise silencieusement le montant total éligible sous les 60 € avant le calcul des frais de livraison. Cependant, en l'absence de code saisi par la cliente, la remise est à 0 et promo.js ne modifie en rien le sous-total transmis à fraisLivraison.
+2. Comment vérifier chaque hypothèse dans le navigateur
+Pour vérifier l'Hypothèse 1 (Imprécision virgule flottante dans la console)
+Ouvrez votre navigateur et les outils de développement (touche F12), puis allez dans l'onglet Console.
+Tapez directement l'opération pour observer le résultat machine :
+javascript
+38.9 + 8.2 + 12.9
+Résultat : La console affiche 59.99999999999999.
+Testez ensuite la condition d'éligibilité à la gratuité :
+javascript
+(38.9 + 8.2 + 12.9) >= 60
+Résultat : La console renvoie false.
+Observez pourquoi l'écran affichait pourtant 60,00 € :
+javascript
+(38.9 + 8.2 + 12.9).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })
+Résultat : La console affiche bien "60,00 €".
+Enfin, vérifiez qu'un arrondi au centime corrigerait le test :
+javascript
+(Math.round((38.9 + 8.2 + 12.9) * 100) / 100) >= 60
+Résultat : La console renvoie true.
+Pour vérifier l'Hypothèse 2 (Vérification des règles de livraison)
+Dans la console (F12), chargez les données de livraison :
+javascript
+fetch("data/livraison.json").then(r => r.json()).then(d => console.log("Seuil de gratuité :", d.seuilGratuite));
+Résultat : La console affiche Seuil de gratuité : 60.
+Dans l'onglet Sources, ouvrez js/livraison.js à la ligne 27 : constatez que la ligne est bien if (montant >= regles.seuilGratuite) return 0; (l'opérateur est bien >=).
+Pour vérifier l'Hypothèse 3 (Absence d'impact d'une promotion)
+Dans la boutique, composez le bouquet « Blanc pur » en taille « Moyen » avec « Vase », et indiquez le code postal 37000.
+Laissez le champ de code promo vide.
+Inspectez la ligne de remise dans le récapitulatif : elle indique 0,00 €.
+Dans la console (F12), vérifiez la variable d'état :
+javascript
+JSON.parse(localStorage.getItem("panier-roussel")).codePromo
+Résultat : La valeur est une chaîne vide "", confirmant qu'aucune promotion n'est en cause.
+
+(Conformément à vos consignes, aucun correctif n'a été appliqué à ce stade.)
